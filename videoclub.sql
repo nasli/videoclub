@@ -645,6 +645,10 @@ alter table prestamo
 add constraint fk_socio_prestamo
 foreign key (id_socio) references socio(id);
 
+alter table direccion 
+add constraint fk_socio_direccion
+foreign key (id_socio) references socio(id);
+
 --- unique values
 alter table socio
 add constraint uq_socio_dni
@@ -858,7 +862,6 @@ from copia c
 where c.id not in (select id_copia from prestamo);
 */
 
-
 /*
  * CONSULTA SELECT:
  * Que películas están disponibles para alquilar en este momento (no están
@@ -879,6 +882,12 @@ group by 1
 order by 1 ;
 */
 
+create view vista_peliculas_prestadas as
+select s.nombre, p.fecha_prestamo, p2.titulo, c.id as id_copia from prestamo p 
+inner join socio s on s.id = p.id_socio
+inner join copia c on c.id = p.id_copia 
+inner join pelicula p2 on p2.id = c.id_pelicula 
+where p.fecha_devolucion is null ;
 
 /*
  * CONSULTA FINAL SELECT para aun no prestadas también:
