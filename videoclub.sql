@@ -1,8 +1,12 @@
---- create schema videoclub;
+create schema videoclubTmp;
 
-set schema 'videoclub';
+---set schema 'videoclubNoelia';
+
+set search_path to 'videoclubNoelia', videoclubNoelia;
+
 /*
---- Load tmp videoclub data
+ * Load tmp videoclub data
+ */
 
 CREATE TABLE tmp_videoclub (
 	id_copia int4 NULL,
@@ -583,7 +587,7 @@ create table socio(
 	fecha_nacimiento date NOT NULL,
 	telefono varchar(15) NOT NULL,
 	dni varchar(10) NOT null,
-	email varchar(200) NULL
+	email varchar(200)
 );
 
 
@@ -592,7 +596,8 @@ create table direccion(
 	codigo_postal varchar(6) NOT NULL,
 	calle varchar(100) NOT NULL,
 	numero varchar(5) NOT NULL,
-	piso varchar(10) NOT NULL
+	piso varchar(10) NOT NULL,
+	letra varchar(10)
 );
 
 create table genero(
@@ -602,7 +607,7 @@ create table genero(
 	
 create table director(
 	id smallserial PRIMARY KEY,
-	valor varchar(15) NOT NULL
+	valor varchar(100) NOT NULL
 );
 
 create table pelicula(
@@ -626,7 +631,10 @@ create table copia(
 	id_pelicula smallint NOT NULL
 );
 
---- constraints
+
+/*
+ * Add constraints
+ */
 
 alter table pelicula 
 add constraint fk_genero_pelicula
@@ -653,38 +661,45 @@ alter table socio
 add constraint uq_socio_dni
 unique (dni);
 
+alter table socio
+add constraint uq_socio_email
+unique (email);
+
 --- index
-CREATE UNIQUE INDEX index_valor_genero ON genero (lower(valor));
-CREATE UNIQUE INDEX index_valor_director ON director (lower(valor));
+create UNIQUE INDEX index_valor_genero on genero (lower(valor));
+create UNIQUE INDEX index_valor_director on director (lower(valor));
 
 
 --- check all
-	select * from tmp_videoclub tv ;
+select * from tmp_videoclub tv ;
 
---- poblate our model
+
+/*
+ * Poblate our model
+ */
 
 insert into genero (valor)
 select distinct genero from tmp_videoclub;
 
 --- truncate table director, pelicula, copia, prestamo  ; 
 --- select setval('videoclub.director_id_seq', 1, false);
-alter table director alter column valor type varchar(100) using valor::varchar(100);
+--- alter table director alter column valor type varchar(100) using valor::varchar(100);
 
 insert into director (valor)
 select distinct director from tmp_videoclub;
 
 insert into pelicula (titulo, sinopsis, id_genero, id_director)
 select distinct tv.titulo, tv.sinopsis, g.id, d.id from tmp_videoclub tv
-inner join genero g on tv.genero = g.valor
-inner join director d on tv.director = d.valor ;
+inner join genero g on g.valor = tv.genero
+inner join director d on d.valor = tv.director;
 
 
 --- insert into table copia
 select distinct p.id from tmp_videoclub tv
-inner join pelicula p on tv.titulo = p.titulo;
+inner join pelicula p on p.titulo = tv.titulo;
 
 select distinct tv.id_copia, tv.titulo, p.id, p.titulo as ptitulo from tmp_videoclub tv
-inner join pelicula p on tv.titulo = p.titulo
+inner join pelicula p on p.titulo = tv.titulo
 order by tv.titulo;
 
 insert into copia (id, id_pelicula)
@@ -692,16 +707,29 @@ select cp.id_copia, cp.id
 from (
     select distinct tv.id_copia, tv.titulo, p.id, p.titulo as ptitulo 
     from tmp_videoclub tv
-    inner join pelicula p ON tv.titulo = p.titulo
+    inner join pelicula p ON p.titulo = tv.titulo
     order by p.id
 ) as cp
 order by cp.id_copia;
 
 
+--- insert into table socio
+insert into socio (nombre, apellido_1, apellido_2, fecha_nacimiento, telefono, dni, email)
+select distinct tv.nombre, tv.apellido_1, tv.apellido_2, cast(tv.fecha_nacimiento as date), tv.telefono, tv.dni, tv.email 
+from tmp_videoclub tv;
 
---- insert into table 
+--- insert into table prestamo
+insert into prestamo (id_copia, fecha_prestamo, fecha_devolucion, id_socio)
+select tv.id_copia, tv.fecha_alquiler, tv.fecha_devolucion, s.id as id_socio from tmp_videoclub tv
+inner join socio s ON s.dni = tv.dni; 
 
+--- insert into table direccion
+--- alter table direccion add letra varchar(10);
 
+insert into direccion (codigo_postal, calle, numero, piso, letra, id_socio)
+select  distinct tv.codigo_postal, tv.calle, tv.numero, tv.piso, tv.letra, s.id as id_socio from tmp_videoclub tv 
+inner join socio s ON tv.dni = s.dni 
+order by s.id ;
 
 
 /*
@@ -710,6 +738,148 @@ order by cp.id_copia;
  * prestadas). Necesito saber el título de la película y el número de copias
  * disponibles.
  */ 
+
+select p.id as peliculaID, p.titulo, c.id as id_copia, p2.fecha_prestamo, p2.fecha_devolucion  from pelicula p
+inner join copia c ON p.id = c.id_pelicula 
+left join prestamo p2 ON p2.id_copia = c.id 
+order by p.id;
+
+select p.id as peliculaID, p.titulo, c.id as id_copia from pelicula p
+inner join copia c ON p.id = c.id_pelicula 
+order by p.id;
+
+select p2.id as prestamoID, c.id as copiaID, c.id_pelicula, pe.titulo, p2.fecha_prestamo, p2.fecha_devolucion 
+from copia c
+inner join pelicula pe on pe.id = c.id_pelicula 
+left join prestamo p2 ON  c.id = p2.id_copia
+where p2.fecha_devolucion is not null
+order by c.id_pelicula
+;
+
+select distinct c.id as copiaID, c.id_pelicula, pe.titulo
+from copia c
+inner join pelicula pe on pe.id = c.id_pelicula 
+left join prestamo p2 ON  c.id = p2.id_copia
+where p2.fecha_devolucion is null
+order by c.id_pelicula
+;
 	
+select tv.id_copia, tv.fecha_devolucion, tv.fecha_alquiler, tv.titulo, tv.dni  from tmp_videoclub tv
+where id_copia ='283';
+
+
+--- comprobar si alguna copia nunca se ha prestado
+select c.id
+from copia c
+where c.id not in (select id_copia from prestamo);
+
+SELECT p.id_copia, COUNT(*), p2.titulo 
+FROM copia c
+inner join pelicula p2 on p2.id = c.id_pelicula 
+left join prestamo p on c.id = p.id_copia
+group by p.id_copia, p2.titulo ;
+
+select cp.id_copia, cp.titulo
+from (
+    SELECT p.id_copia, p2.titulo 
+	FROM copia c
+	inner join pelicula p2 on p2.id = c.id_pelicula 
+	LEFT JOIN prestamo p ON c.id = p.id_copia
+	where p.fecha_devolucion is not null
+) as cp;
+---group by cp.id_copia, cp.titulo ;
 	
-	
+select p2.titulo, p2.id, COUNT(*)
+from (
+	select cp.id_copia
+	from (
+	    SELECT p.id_copia, p2.titulo, p2.id
+		FROM prestamo p
+		inner join pelicula p2 on p2.id = p.id_copia
+		LEFT JOIN copia c ON c.id = p.id_copia
+	) as cp
+	group by cp.id_copia
+) as d
+inner join copia c2 on c2.id = d.id_copia
+inner join pelicula p2 on p2.id = c2.id_pelicula 
+group by p2.id, p2.titulo ;
+;
+
+select p.id_copia, p2.id, p.fecha_devolucion, p.fecha_prestamo , p2.titulo 
+from prestamo p
+inner join copia c on c.id =  p.id_copia 
+inner join pelicula p2 on p2.id = c.id_pelicula 
+where p2.id  = '54';
+
+---select p1.id_copia, p1.id_socio, c.id_pelicula, p1.fecha_prestamo, p1.fecha_devolucion, p.titulo
+select p.titulo, count(distinct c.id)
+from prestamo p1
+inner join copia c on c.id = id_copia 
+inner join pelicula p on p.id = c.id_pelicula
+where p1.fecha_prestamo = (
+    select  MAX(p2.fecha_prestamo)
+    from prestamo p2
+    where p1.id_copia = p2.id_copia
+)
+and p1.fecha_devolucion is not null
+group by 1
+order by 1 ;
+
+----
+select tv.id_copia, tv.titulo, tv.fecha_alquiler, tv.fecha_devolucion  
+from tmp_videoclub tv where tv.id_copia = 100
+order by tv.id_copia ;
+
+select pr.id, pr.id_copia, pr.fecha_prestamo, pr.fecha_devolucion, p.titulo , p.id  
+from prestamo pr 
+inner join copia c on c.id = pr.id_copia
+inner join pelicula p on p.id  = c.id_pelicula
+where p.titulo  = 'Given: The Movie' 
+order by pr.id_copia ;
+
+--- test si hay más de 1 copia disponible para prestar por pelicula
+update prestamo
+set fecha_devolucion = '2024-02-24'
+where id = 403;
+
+--- leave same date
+update prestamo
+set fecha_devolucion = null 
+where id = 403;
+
+--- test si hubiera peliculas aun no se han prestado, insert una copia pelicula nueva
+--- insert into copia (id_pelicula) values (21);
+
+select nextval(pg_get_serial_sequence('copia', 'id'));
+select setval(pg_get_serial_sequence('copia', 'id'), (select MAX(id) from copia));
+select nextval(pg_get_serial_sequence('copia', 'id'));
+
+insert into copia (id_pelicula) values (21);
+
+select * from copia where id_pelicula = 21;
+
+--- comprobar que existe la copia extra creada que nunca se ha prestado
+select c.id
+from copia c
+where c.id not in (select id_copia from prestamo);
+
+
+/*
+ * CONSULTA FINAL SELECT:
+ * Que películas están disponibles para alquilar en este momento (no están
+ * prestadas). Necesito saber el título de la película y el número de copias
+ * disponibles.
+ */
+select p.titulo as "Titulo Peliculas disponibles", count(distinct c.id) as "Num. copias disponibles"
+from prestamo p1
+inner join copia c on c.id = id_copia 
+inner join pelicula p on p.id = c.id_pelicula
+where p1.fecha_prestamo = (
+    select  MAX(p2.fecha_prestamo)
+    from prestamo p2
+    where p1.id_copia = p2.id_copia
+)
+and p1.fecha_devolucion is not null
+group by 1
+order by 1 ;
+
