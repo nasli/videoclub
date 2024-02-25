@@ -734,9 +734,7 @@ order by s.id ;
 
 /*
  * SELECT
- * Que películas están disponibles para alquilar en este momento (no están
- * prestadas). Necesito saber el título de la película y el número de copias
- * disponibles.
+ * 
  */ 
 
 select p.id as peliculaID, p.titulo, c.id as id_copia, p2.fecha_prestamo, p2.fecha_devolucion  from pelicula p
@@ -865,7 +863,7 @@ where c.id not in (select id_copia from prestamo);
 
 
 /*
- * CONSULTA FINAL SELECT:
+ * CONSULTA SELECT:
  * Que películas están disponibles para alquilar en este momento (no están
  * prestadas). Necesito saber el título de la película y el número de copias
  * disponibles.
@@ -883,3 +881,24 @@ and p1.fecha_devolucion is not null
 group by 1
 order by 1 ;
 
+/*
+ * CONSULTA FINAL SELECT para aun no prestadas también:
+ * Que películas están disponibles para alquilar en este momento (no están
+ * prestadas). Necesito saber el título de la película y el número de copias
+ * disponibles.
+ */
+select p.titulo as "Titulo Peliculas disponibles", count(distinct c.id) as "Num. copias disponibles"
+from prestamo p1
+right join copia c on c.id = id_copia 
+inner join pelicula p on p.id = c.id_pelicula
+where (
+	p1.fecha_prestamo = (
+	    select  MAX(p2.fecha_prestamo)
+	    from prestamo p2
+	    where p1.id_copia = p2.id_copia
+	) 
+	and p1.fecha_devolucion is not null
+)
+or c.id not in (select id_copia from prestamo)
+group by 1
+order by 1 ;
