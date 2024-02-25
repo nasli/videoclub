@@ -879,6 +879,7 @@ group by 1
 order by 1 ;
 */
 
+
 /*
  * CONSULTA FINAL SELECT para aun no prestadas también:
  * Que películas están disponibles para alquilar en este momento (no están
@@ -901,3 +902,5 @@ where (
 or c.id not in (select id_copia from prestamo)
 group by 1
 order by 1 ;
+
+select * from vista_peliculas_disponibles vpd ;
