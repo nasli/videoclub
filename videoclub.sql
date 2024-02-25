@@ -885,6 +885,7 @@ order by 1 ;
  * prestadas). Necesito saber el título de la película y el número de copias
  * disponibles.
  */
+create view vista_peliculas_disponibles as
 select p.titulo as "Titulo Peliculas disponibles", count(distinct c.id) as "Num. copias disponibles"
 from prestamo p1
 right join copia c on c.id = id_copia 
